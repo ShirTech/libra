@@ -8,6 +8,7 @@
 -  [Resource `IdCounter`](#0x1_TokenRegistry_IdCounter)
 -  [Resource `TokenMetadata`](#0x1_TokenRegistry_TokenMetadata)
 -  [Resource `TokenRegistryWithMintCapability`](#0x1_TokenRegistry_TokenRegistryWithMintCapability)
+-  [Resource `Reserve`](#0x1_TokenRegistry_Reserve)
 -  [Constants](#@Constants_0)
 -  [Function `TOKEN_REGISTRY_COUNTER_ADDRESS`](#0x1_TokenRegistry_TOKEN_REGISTRY_COUNTER_ADDRESS)
 -  [Function `initialize`](#0x1_TokenRegistry_initialize)
@@ -16,9 +17,11 @@
 -  [Function `assert_is_registered_at`](#0x1_TokenRegistry_assert_is_registered_at)
 -  [Function `is_transferable`](#0x1_TokenRegistry_is_transferable)
 -  [Function `get_id`](#0x1_TokenRegistry_get_id)
+-  [Function `create`](#0x1_TokenRegistry_create)
 
 
 <pre><code><b>use</b> <a href="Errors.md#0x1_Errors">0x1::Errors</a>;
+<b>use</b> <a href="Libra.md#0x1_Libra">0x1::Libra</a>;
 <b>use</b> <a href="Signer.md#0x1_Signer">0x1::Signer</a>;
 </code></pre>
 
@@ -102,6 +105,39 @@
 <dl>
 <dt>
 <code>maker_account: address</code>
+</dt>
+<dd>
+
+</dd>
+</dl>
+
+
+</details>
+
+<a name="0x1_TokenRegistry_Reserve"></a>
+
+## Resource `Reserve`
+
+
+
+<pre><code><b>resource</b> <b>struct</b> <a href="TokenRegistry.md#0x1_TokenRegistry_Reserve">Reserve</a>&lt;CoinType&gt;
+</code></pre>
+
+
+
+<details>
+<summary>Fields</summary>
+
+
+<dl>
+<dt>
+<code>mint_cap: <a href="Libra.md#0x1_Libra_MintCapability">Libra::MintCapability</a>&lt;CoinType&gt;</code>
+</dt>
+<dd>
+
+</dd>
+<dt>
+<code>burn_cap: <a href="Libra.md#0x1_Libra_BurnCapability">Libra::BurnCapability</a>&lt;CoinType&gt;</code>
 </dt>
 <dd>
 
@@ -229,7 +265,7 @@ Registers a new token, place its TokenMetadata on the signer
 account and returns a designated mint capability
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="TokenRegistry.md#0x1_TokenRegistry_register">register</a>&lt;CoinType&gt;(maker_account: &signer, _t: &CoinType, transferable: bool): <a href="TokenRegistry.md#0x1_TokenRegistry_TokenRegistryWithMintCapability">TokenRegistry::TokenRegistryWithMintCapability</a>&lt;CoinType&gt;
+<pre><code><b>public</b> <b>fun</b> <a href="TokenRegistry.md#0x1_TokenRegistry_register">register</a>&lt;CoinType&gt;(maker_account: &signer, _t: &CoinType, transferable: bool)
 </code></pre>
 
 
@@ -241,7 +277,7 @@ account and returns a designated mint capability
 <pre><code><b>public</b> <b>fun</b> <a href="TokenRegistry.md#0x1_TokenRegistry_register">register</a>&lt;CoinType&gt;(maker_account: &signer,
                             _t: &CoinType,
                             transferable: bool,
-): <a href="TokenRegistry.md#0x1_TokenRegistry_TokenRegistryWithMintCapability">TokenRegistryWithMintCapability</a>&lt;CoinType&gt; <b>acquires</b> <a href="TokenRegistry.md#0x1_TokenRegistry_IdCounter">IdCounter</a> {
+) <b>acquires</b> <a href="TokenRegistry.md#0x1_TokenRegistry_IdCounter">IdCounter</a> {
     <b>assert</b>(!<b>exists</b>&lt;<a href="TokenRegistry.md#0x1_TokenRegistry_TokenMetadata">TokenMetadata</a>&lt;CoinType&gt;&gt;(<a href="Signer.md#0x1_Signer_address_of">Signer::address_of</a>(maker_account)), <a href="Errors.md#0x1_Errors_already_published">Errors::already_published</a>(<a href="TokenRegistry.md#0x1_TokenRegistry_ETOKEN_REG">ETOKEN_REG</a>));
     // increments unique counter under <b>global</b> registry address
     <b>let</b> unique_id = <a href="TokenRegistry.md#0x1_TokenRegistry_get_fresh_id">get_fresh_id</a>();
@@ -249,8 +285,9 @@ account and returns a designated mint capability
         maker_account,
         <a href="TokenRegistry.md#0x1_TokenRegistry_TokenMetadata">TokenMetadata</a> { id: unique_id, transferable}
     );
-    <b>let</b> address = <a href="Signer.md#0x1_Signer_address_of">Signer::address_of</a>(maker_account);
-    <a href="TokenRegistry.md#0x1_TokenRegistry_TokenRegistryWithMintCapability">TokenRegistryWithMintCapability</a>&lt;CoinType&gt;{maker_account: address}
+    // <b>let</b> address = <a href="Signer.md#0x1_Signer_address_of">Signer::address_of</a>(maker_account);
+    <b>let</b> (mint_cap, burn_cap) = <a href="Libra.md#0x1_Libra_register_token">Libra::register_token</a>&lt;CoinType&gt;(maker_account);
+    move_to(maker_account, <a href="TokenRegistry.md#0x1_TokenRegistry_Reserve">Reserve</a>&lt;CoinType&gt; { mint_cap, burn_cap});
 }
 </code></pre>
 
@@ -331,6 +368,33 @@ Returns the global uniqe ID of <code>CoinType</code>
     <a href="TokenRegistry.md#0x1_TokenRegistry_assert_is_registered_at">assert_is_registered_at</a>&lt;CoinType&gt;(registered_at);
     <b>let</b> metadata = borrow_global&lt;<a href="TokenRegistry.md#0x1_TokenRegistry_TokenMetadata">TokenMetadata</a>&lt;CoinType&gt;&gt;(registered_at);
     metadata.id
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="0x1_TokenRegistry_create"></a>
+
+## Function `create`
+
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="TokenRegistry.md#0x1_TokenRegistry_create">create</a>&lt;CoinType&gt;(account: &signer, amount: u64): <a href="Libra.md#0x1_Libra_Libra">Libra::Libra</a>&lt;CoinType&gt;
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="TokenRegistry.md#0x1_TokenRegistry_create">create</a>&lt;CoinType&gt;(account: &signer, amount: u64): <a href="Libra.md#0x1_Libra">Libra</a>&lt;CoinType&gt; <b>acquires</b> <a href="TokenRegistry.md#0x1_TokenRegistry_Reserve">Reserve</a>{
+    <b>assert</b>(amount &gt; 0, <a href="Errors.md#0x1_Errors_invalid_argument">Errors::invalid_argument</a>(0));
+    <b>let</b> addr = <a href="Signer.md#0x1_Signer_address_of">Signer::address_of</a>(account);
+    <b>let</b> reserve = borrow_global_mut&lt;<a href="TokenRegistry.md#0x1_TokenRegistry_Reserve">Reserve</a>&lt;CoinType&gt;&gt;(addr);
+    <a href="Libra.md#0x1_Libra_mint_with_capability">Libra::mint_with_capability</a>&lt;CoinType&gt;(amount, &reserve.mint_cap)
 }
 </code></pre>
 

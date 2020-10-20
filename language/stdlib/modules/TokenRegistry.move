@@ -3,6 +3,7 @@ address 0x1 {
     module TokenRegistry {
         use 0x1::Errors;
         use 0x1::Signer;
+        use 0x1::Libra::{Self, Libra};
 
 
         resource struct IdCounter {
@@ -26,6 +27,11 @@ address 0x1 {
         // 1) keep the register function entirely in this module. This requires a unique mint capability.
         // 2) move registration to the Libra module, in order to provide Libra::MintCapability
 
+
+        resource struct Reserve<CoinType> {
+            mint_cap: Libra::MintCapability<CoinType>,
+            burn_cap: Libra::BurnCapability<CoinType>,
+        }
 
         /// A property expected of a `IdCounter` resource didn't hold
         const EID_COUNTER: u64 = 1;
@@ -64,7 +70,7 @@ address 0x1 {
         public fun register<CoinType>(maker_account: &signer, 
                                     _t: &CoinType,                                
                                     transferable: bool,
-        ): TokenRegistryWithMintCapability<CoinType> acquires IdCounter {
+        ) acquires IdCounter {
             assert(!exists<TokenMetadata<CoinType>>(Signer::address_of(maker_account)), Errors::already_published(ETOKEN_REG));
             // increments unique counter under global registry address  
             let unique_id = get_fresh_id(); 
@@ -72,8 +78,9 @@ address 0x1 {
                 maker_account,  
                 TokenMetadata { id: unique_id, transferable}
             ); 
-            let address = Signer::address_of(maker_account);
-            TokenRegistryWithMintCapability<CoinType>{maker_account: address}
+            // let address = Signer::address_of(maker_account);
+            let (mint_cap, burn_cap) = Libra::register_token<CoinType>(maker_account);
+            move_to(maker_account, Reserve<CoinType> { mint_cap, burn_cap});
         }
 
         /// Asserts that `CoinType` is a registered type at the given address
@@ -94,6 +101,14 @@ address 0x1 {
             assert_is_registered_at<CoinType>(registered_at);
             let metadata = borrow_global<TokenMetadata<CoinType>>(registered_at);
             metadata.id
+        }
+
+        //NEW
+        public fun create<CoinType>(account: &signer, amount: u64): Libra<CoinType> acquires Reserve{
+            assert(amount > 0, Errors::invalid_argument(0));
+            let addr = Signer::address_of(account);
+            let reserve = borrow_global_mut<Reserve<CoinType>>(addr);
+            Libra::mint_with_capability<CoinType>(amount, &reserve.mint_cap)
         }
 
     }

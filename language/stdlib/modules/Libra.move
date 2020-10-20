@@ -29,7 +29,9 @@ module Libra {
     /// of coins of `CoinType` currency by the holder of this capability.
     /// This capability is held only either by the `CoreAddresses::TREASURY_COMPLIANCE_ADDRESS()`
     /// account or the `0x1::LBR` module (and `CoreAddresses::LIBRA_ROOT_ADDRESS()` in testnet).
-    resource struct MintCapability<CoinType> { }
+    resource struct MintCapability<CoinType> {
+        maker_address: address,
+    }
 
     /// The `BurnCapability` resource defines a capability to allow coins
     /// of `CoinType` currency to be burned by the holder of the
@@ -339,12 +341,20 @@ module Libra {
     /// reference.
     public fun mint_with_capability<CoinType>(
         value: u64,
-        _capability: &MintCapability<CoinType>
+        capability: &MintCapability<CoinType>
     ): Libra<CoinType> acquires CurrencyInfo {
-        assert_is_currency<CoinType>();
-        let currency_code = currency_code<CoinType>();
+
+        // assert_is_currency<CoinType>();
+        //let currency_code = currency_code<CoinType>();
+
         // update market cap resource to reflect minting
-        let info = borrow_global_mut<CurrencyInfo<CoinType>>(CoreAddresses::CURRENCY_INFO_ADDRESS());
+        let currency_info_addr = capability.maker_address;
+        let currency_code = *&borrow_global<CurrencyInfo<CoinType>>(currency_info_addr).currency_code;
+        if (currency_info_addr == CoreAddresses::CURRENCY_INFO_ADDRESS()){
+            assert_is_currency<CoinType>();
+        };
+        let info = borrow_global_mut<CurrencyInfo<CoinType>>(currency_info_addr);
+
         assert(info.can_mint, Errors::invalid_state(EMINTING_NOT_ALLOWED));
         assert(MAX_U128 - info.total_value >= (value as u128), Errors::limit_exceeded(ECURRENCY_INFO));
         info.total_value = info.total_value + (value as u128);
@@ -871,7 +881,7 @@ module Libra {
             lr_account,
             currency_code,
         );
-        (MintCapability<CoinType>{}, BurnCapability<CoinType>{})
+        (MintCapability<CoinType>{maker_address: Signer::address_of(lr_account)}, BurnCapability<CoinType>{})
     }
     spec fun register_currency {
         include RegisterCurrencyAbortsIf<CoinType>;
@@ -952,6 +962,41 @@ module Libra {
     spec schema RegisterSCSCurrencyEnsures<CoinType> {
         tc_account: signer;
         ensures spec_has_mint_capability<CoinType>(Signer::spec_address_of(tc_account));
+    }
+
+    public fun register_token<CoinType>(
+        maker_account: &signer,
+    ): (MintCapability<CoinType>, BurnCapability<CoinType>)
+    {
+        // Roles::assert_libra_root(lr_account);
+        // // Operational constraint that it must be stored under a specific address.
+        // CoreAddresses::assert_currency_info(lr_account);
+        assert(
+            !exists<CurrencyInfo<CoinType>>(Signer::address_of(maker_account)),
+            Errors::already_published(ECURRENCY_INFO)
+        );
+        // assert(0 < scaling_factor && scaling_factor <= MAX_SCALING_FACTOR, Errors::invalid_argument(ECURRENCY_INFO));
+        // let exchange_rate = FixedPoint32::create_from_rational(1, 1);
+        move_to(maker_account, CurrencyInfo<CoinType> {
+            total_value: 0,
+            preburn_value: 0,
+            to_lbr_exchange_rate: FixedPoint32::create_from_rational(1, 1),
+            is_synthetic: true,
+            scaling_factor: 1000000,
+            fractional_part: 100,
+            currency_code: b"Tmp",
+            can_mint: true,
+            mint_events: Event::new_event_handle<MintEvent>(maker_account),
+            burn_events: Event::new_event_handle<BurnEvent>(maker_account),
+            preburn_events: Event::new_event_handle<PreburnEvent>(maker_account),
+            cancel_burn_events: Event::new_event_handle<CancelBurnEvent>(maker_account),
+            exchange_rate_update_events: Event::new_event_handle<ToLBRExchangeRateUpdateEvent>(maker_account)
+        });
+        // RegisteredCurrencies::add_currency_code(
+        //     lr_account,
+        //     currency_code,
+        // );
+        (MintCapability<CoinType>{maker_address: Signer::address_of(maker_account)}, BurnCapability<CoinType>{})
     }
 
     /// Returns the total amount of currency minted of type `CoinType`.

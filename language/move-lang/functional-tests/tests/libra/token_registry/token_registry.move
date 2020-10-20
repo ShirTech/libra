@@ -2,30 +2,20 @@
 //! account: alice
 
 
-//! new-transaction
-module Holder {
-    resource struct Holder<T> { x: T }
-    public fun hold<T>(account: &signer, x: T)  {
-        move_to(account, Holder<T> { x })
-    }
-}
-// check: "Keep(EXECUTED)"
-
-
 // Defining the ACoin module so we can test its registry
 //! new-transaction
 //! sender: bob
 module ACoin {
-    use 0x1::TokenRegistry::{Self, TokenRegistryWithMintCapability};
+    use 0x1::TokenRegistry;
     use 0x1::Signer;
 
     struct ACoin {}
 
-    public fun register(account: &signer) :TokenRegistryWithMintCapability<ACoin> {
+    public fun register(account: &signer) {
         assert(Signer::address_of(account) == {{bob}}, 8000);
 
-      let a_coin = ACoin{};
-      TokenRegistry::register<ACoin>(account, &a_coin, true)
+        let a_coin = ACoin{};
+        TokenRegistry::register<ACoin>(account, &a_coin, true)
     }
   }
 // check: "Keep(EXECUTED)"
@@ -36,11 +26,9 @@ module ACoin {
 //! sender: bob
 script {
     use {{bob}}::ACoin;
-    use {{default}}::Holder;
 
     fun main(sender: &signer) {
-        let mint_cap = ACoin::register(sender);
-        Holder::hold(sender, mint_cap);
+        ACoin::register(sender);
     }
 }
 // check: "ABORTED { code: 261"
@@ -76,11 +64,9 @@ script {
 //! sender: bob
 script {
     use {{bob}}::ACoin;
-    use {{default}}::Holder;
 
     fun main(sender: &signer) {
-        let mint_cap = ACoin::register(sender);
-        Holder::hold(sender, mint_cap);
+        ACoin::register(sender);
     }
 }
 // check: "Keep(EXECUTED)"
@@ -91,12 +77,12 @@ script {
 //! new-transaction
 //! sender: alice
 module BCoin {
-    use 0x1::TokenRegistry::{Self, TokenRegistryWithMintCapability};
+    use 0x1::TokenRegistry;
     use 0x1::Signer;
 
     struct BCoin {}
 
-    public fun register(account: &signer) :TokenRegistryWithMintCapability<BCoin> {
+    public fun register(account: &signer) {
         assert(Signer::address_of(account) == {{alice}}, 8000);
 
       let b_coin = BCoin{};
@@ -111,11 +97,9 @@ module BCoin {
 //! sender: bob
 script {
     use {{alice}}::BCoin;
-    use {{default}}::Holder;
 
     fun main(sender: &signer) {
-        let mint_cap = BCoin::register(sender);
-        Holder::hold(sender, mint_cap);
+        BCoin::register(sender);
     }
 }
 // check: "ABORTED { code: 8000"
@@ -139,11 +123,9 @@ script {
 //! sender: alice
 script {
     use {{alice}}::BCoin;
-    use {{default}}::Holder;
 
     fun main(sender: &signer) {
-        let mint_cap = BCoin::register(sender);
-        Holder::hold(sender, mint_cap);
+        BCoin::register(sender);
     }
 }
 // check: "Keep(EXECUTED)"
@@ -197,10 +179,8 @@ script {
 //! sender: alice
 script {
     use {{alice}}::BCoin;
-    use {{default}}::Holder;
     fun main(sender: &signer) {
-        let mint_cap = BCoin::register(sender);
-        Holder::hold(sender, mint_cap);
+        BCoin::register(sender);
     }
 }
 // check: "ABORTED { code: 518"
